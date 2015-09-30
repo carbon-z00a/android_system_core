@@ -82,25 +82,17 @@ int BatteryMonitor::getBatteryStatus(const char* status) {
     return ret;
 }
 
-int BatteryMonitor::getBatteryChargeType(const char* chargeType) {
+int BatteryMonitor::getBatteryChargeRate(const char* charge_rate) {
     int ret = HEALTHD_MAP_CONTINUE_SEARCH;
 
-    if (mHealthdConfig->mapChargeTypeString)
-        ret = mHealthdConfig->mapChargeTypeString(chargeType);
+    if (mHealthdConfig->mapChargeRateString)
+        ret = mHealthdConfig->mapChargeRateString(charge_rate);
 
-    if (ret == HEALTHD_MAP_CONTINUE_SEARCH) {
-        struct sysfsStringEnumMap chargeTypeMap[] = {
-            { "Unknown", BATTERY_CHARGE_TYPE_UNKNOWN },
-            { "Fast", BATTERY_CHARGE_TYPE_FAST_CHARGING },
-            { "Turbo", BATTERY_CHARGE_TYPE_FAST_CHARGING },
-            { NULL, 0 },
-        };
-
-        ret = mapSysfsString(chargeType, chargeTypeMap);
-    }
+    if (ret == HEALTHD_MAP_CONTINUE_SEARCH)
+        ret = BATTERY_CHARGE_RATE_UNKNOWN;
 
     if (ret < 0)
-        ret = BATTERY_CHARGE_TYPE_UNKNOWN;
+        ret = BATTERY_CHARGE_RATE_UNKNOWN;
 
     return ret;
 }
@@ -216,7 +208,7 @@ bool BatteryMonitor::update(void) {
     props.chargerWirelessOnline = false;
     props.chargerDockAcOnline = false;
     props.batteryStatus = BATTERY_STATUS_UNKNOWN;
-    props.batteryChargeType = BATTERY_CHARGE_TYPE_UNKNOWN;
+    props.batteryChargeRate = BATTERY_CHARGE_RATE_UNKNOWN;
     props.batteryHealth = BATTERY_HEALTH_UNKNOWN;
     props.dockBatteryStatus = BATTERY_STATUS_UNKNOWN;
     props.dockBatteryHealth = BATTERY_HEALTH_UNKNOWN;
@@ -239,8 +231,9 @@ bool BatteryMonitor::update(void) {
     char buf[SIZE];
     String8 btech;
 
-    if (readFromFile(mHealthdConfig->batteryChargeTypePath, buf, SIZE) > 0)
-        props.batteryChargeType = getBatteryChargeType(buf);
+    if (!mHealthdConfig->batteryChargeRatePath.isEmpty())
+        if (readFromFile(mHealthdConfig->batteryChargeRatePath, buf, SIZE) > 0)
+            props.batteryChargeRate = getBatteryChargeRate(buf);
 
     if (readFromFile(mHealthdConfig->batteryStatusPath, buf, SIZE) > 0)
         props.batteryStatus = getBatteryStatus(buf);
@@ -625,14 +618,6 @@ void BatteryMonitor::init(struct healthd_config *hc) {
                                       name);
                     if (access(path, R_OK) == 0)
                         mHealthdConfig->batteryStatusPath = path;
-                }
-
-                if (mHealthdConfig->batteryChargeTypePath.isEmpty()) {
-                    path.clear();
-                    path.appendFormat("%s/%s/charge_type", POWER_SUPPLY_SYSFS_PATH,
-                                      name);
-                    if (access(path, R_OK) == 0)
-                        mHealthdConfig->batteryChargeTypePath = path;
                 }
 
                 if (mHealthdConfig->batteryHealthPath.isEmpty()) {
